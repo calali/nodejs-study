@@ -25,32 +25,29 @@ const getCommentInfo = (urls,res)=>{
     ep.after('got_file', len, function (list) {
         // 在所有文件的异步执行结束后将被执行
         // 所有文件的内容都存在list数组中
-        let items = []
         list.map((item,i)=>{
             const $ = cheerio.load(item.text)
-            console.log(item.url)
-            items.push({
-                title: $('.topic_full_title').text().trim(),
-                href: item.url,
-                comment1:  $('.panel .reply_content p').eq(0).text().trim(),
-                author1:  $('.panel .reply_author').eq(0).text().trim(),
-                author1Url:url.resolve(requestUrl,$('.panel .user_avatar').eq(0).attr('href')),
+            const userUrl = url.resolve(requestUrl,$('.panel .reply_author').eq(0).attr('href'))
+            const title = $('.topic_full_title').text().trim()
+            const href = item.url
+            const comment1 = $('.panel .reply_content p').eq(0).text().trim()
+            const author1 = $('.panel .reply_author').eq(0).text().trim()
+            superagent.get(userUrl).end((err,response)=>{
+                const $ = cheerio.load(response.text)
+                const score1 = $('.user_profile .big').text()
+                let obj = {
+                    title,
+                    href,
+                    comment1,
+                    author1,
+                    score1,
+                }
+                ep.emit('get_score', obj);
             })
-            res.send(items)
-            //查询作者积分
-            return
-            items.map(item=>{
-                superagent.get(item.author1Url).end((err,response)=>{
-                    const $ = cheerio.load(response.text)
-                    const score = $('.user_profile .big').text()
-                    item.score1 = score
-                    ep.emit('get_score', {item: item});
-                })
-            })
-            ep.after('get_score',len,function(scoreList){
-                //和items进行合并返回
-                res.send(scoreList)
-            })
+        })
+        // 查询作者积分
+        ep.after('get_score',len,function(scoreList){
+            res.send(scoreList)
         })
     })
 
@@ -70,7 +67,6 @@ app.get('/', (req, res,next) => {
             const urls = getNewsUrl($)
             //获取每个连接打开后的标题、评论及作者名字和作者个人页链接
             getCommentInfo(urls,res)
-            
         }
     })
 })
